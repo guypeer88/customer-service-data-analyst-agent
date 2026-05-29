@@ -29,6 +29,27 @@ def main() -> None:
         print("Route:", decision.route)
         print("Reason:", decision.reason)
 
+    pending_query = "Show me 5 examples from the REFUND category."
+    pending_tests = [
+        "Sounds good, run it for me.",
+        "Actually make it about shipping examples.",
+        "Not now, skip that.",
+        "What categories exist in the dataset?",
+    ]
+
+    for query in pending_tests:
+        decision = route_query(
+            query,
+            has_pending_recommendation=True,
+            pending_recommendation=pending_query,
+        )
+
+        print("=" * 100)
+        print("Pending recommendation:", pending_query)
+        print("Query:", query)
+        print("Route:", decision.route)
+        print("Reason:", decision.reason)
+
 
 if __name__ == "__main__":
     main()

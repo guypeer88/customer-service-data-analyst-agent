@@ -230,6 +230,7 @@ uv run python -m checks.check_router
 uv run python -m checks.check_agent
 uv run python -m checks.check_memory
 uv run python -m checks.check_profile
+uv run python -m checks.check_recommendations
 ```
 
 ## Assignment Coverage

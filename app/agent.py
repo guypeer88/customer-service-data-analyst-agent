@@ -173,10 +173,12 @@ def invoke_agent(
     """
     Route a user query and invoke the agent when the query is in scope.
     """
-    pending_exists = has_pending_recommendation(session_id, user_id)
+    pending = load_pending_recommendation(session_id, user_id)
+    pending_exists = pending is not None or has_pending_recommendation(session_id, user_id)
     route_decision = route_query(
         user_query,
         has_pending_recommendation=pending_exists,
+        pending_recommendation=pending.suggested_query if pending is not None else None,
     )
 
     if route_decision.route in {

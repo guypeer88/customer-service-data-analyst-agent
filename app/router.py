@@ -137,6 +137,13 @@ Important:
 - Only classify the query.
 - Recommendation confirm, refine, and cancel routes require a pending
   recommendation. If there is no pending recommendation, do not use those routes.
+- If there is a pending recommendation, interpret short natural replies in that
+  context. For example, "sounds good", "sure", "run it for me", or "that works"
+  usually confirm; "maybe examples instead" or "make it about shipping" refine;
+  "skip it" or "not now" cancel.
+- If there is a pending recommendation but the user asks a new dataset question,
+  classify the new question as structured or unstructured instead of forcing a
+  recommendation route.
 - If the query is about general customer service but not about analyzing the dataset,
   classify it as out_of_scope.
 - If the query is a follow-up that appears to refer to earlier dataset analysis,
@@ -153,21 +160,17 @@ Return exactly this JSON shape:
 def route_query(
     user_query: str,
     has_pending_recommendation: bool = False,
+    pending_recommendation: str | None = None,
 ) -> RouteDecision:
     """
     Classify a user query before the agent chooses tools.
 
-    Recommendation request/confirmation phrases use small deterministic guards.
-    Other routes are LLM-based and validated with Pydantic.
+    The classification is LLM-based. Pending recommendation context is included
+    when available so confirmation/refinement/cancel decisions are semantic
+    rather than keyword-based.
     """
-    recommendation_route = _rule_based_recommendation_route(
-        user_query=user_query,
-        has_pending_recommendation=has_pending_recommendation,
-    )
-    if recommendation_route is not None:
-        return recommendation_route
-
     llm = build_llm()
+    pending_summary = pending_recommendation if pending_recommendation else None
 
     response = llm.invoke(
         [
@@ -177,7 +180,10 @@ def route_query(
                 json.dumps(
                     {
                         "query": user_query,
-                        "has_pending_recommendation": has_pending_recommendation,
+                        "has_pending_recommendation": bool(
+                            has_pending_recommendation or pending_summary
+                        ),
+                        "pending_recommendation": pending_summary,
                     },
                     ensure_ascii=False,
                 ),
@@ -194,85 +200,3 @@ def route_query(
             route="out_of_scope",
             reason=f"Router could not produce a valid route decision: {exc}",
         )
-
-
-def _rule_based_recommendation_route(
-    user_query: str,
-    has_pending_recommendation: bool,
-) -> RouteDecision | None:
-    normalized = " ".join(user_query.lower().strip().split())
-
-    recommendation_requests = {
-        "what should i query next",
-        "what should i ask next",
-        "what should i look at next",
-        "suggest a follow-up question",
-        "suggest a follow up question",
-        "recommend a useful next query",
-        "recommend the next query",
-    }
-
-    if normalized.rstrip("?.!") in recommendation_requests:
-        return RouteDecision(
-            route="recommendation_request",
-            reason="The user asked for a recommended next dataset query.",
-        )
-
-    if "query next" in normalized or "ask next" in normalized:
-        return RouteDecision(
-            route="recommendation_request",
-            reason="The user asked for a recommended next dataset query.",
-        )
-
-    if not has_pending_recommendation:
-        return None
-
-    confirmations = {
-        "yes",
-        "yes do it",
-        "yes, do it",
-        "go ahead",
-        "run that",
-        "execute it",
-        "do it",
-        "please do",
-    }
-    cancellations = {
-        "no",
-        "no thanks",
-        "cancel",
-        "cancel that",
-        "don't run it",
-        "do not run it",
-        "never mind",
-    }
-
-    stripped = normalized.rstrip(".!")
-    if stripped in confirmations:
-        return RouteDecision(
-            route="recommendation_confirm",
-            reason="The user confirmed the pending recommended query.",
-        )
-
-    if stripped in cancellations:
-        return RouteDecision(
-            route="recommendation_cancel",
-            reason="The user canceled the pending recommended query.",
-        )
-
-    refinement_markers = [
-        "rather",
-        "instead",
-        "change",
-        "make it",
-        "refine",
-        "different",
-        "about ",
-    ]
-    if any(marker in normalized for marker in refinement_markers):
-        return RouteDecision(
-            route="recommendation_refine",
-            reason="The user asked to refine the pending recommended query.",
-        )
-
-    return None
