@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: csda-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: csda_langgraph
+      POSTGRES_PASSWORD: csda_langgraph_password
+      POSTGRES_DB: csda_checkpoints
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
